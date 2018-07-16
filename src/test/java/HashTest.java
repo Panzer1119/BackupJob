@@ -30,12 +30,30 @@
  *    limitations under the License.
  */
 
+/*
+ *    Copyright 2018 Paul Hagedorn (Panzer1119)
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ */
+
 import net.openhft.hashing.LongHashFunction;
 
 import java.io.File;
+import java.io.FileReader;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Properties;
 
 public class HashTest {
     
@@ -64,6 +82,16 @@ public class HashTest {
         final long hash_kopie = longHashFunction.hashBytes(data_kopie);
         System.out.println(hash_kopie);
         System.out.println(isFileSame(file, file_kopie, longHashFunction));
+        final Properties properties = new Properties();
+        properties.load(new FileReader(new File("src/test/resources/path.txt")));
+        System.out.println(properties);
+        final File folder = new File(properties.getProperty("test_folder"));
+        System.out.println(folder + " exists: " + folder.exists());
+        for (File f : folder.listFiles()) {
+            if (f.isFile()) {
+                System.out.println(f + "=>" + longHashFunction.hashBytes(Files.readAllBytes(f.toPath())));
+            }
+        }
     }
     
     public static final boolean isFileSame(File file_1, File file_2, LongHashFunction longHashFunction) {
