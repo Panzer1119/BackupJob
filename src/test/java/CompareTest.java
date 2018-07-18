@@ -14,7 +14,15 @@
  *    limitations under the License.
  */
 
+import net.openhft.hashing.LongHashFunction;
+import org.jdom2.Document;
+import org.jdom2.Element;
+import org.jdom2.input.SAXBuilder;
+import org.jdom2.output.Format;
+import org.jdom2.output.XMLOutputter;
+
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.nio.file.Files;
 import java.util.AbstractMap;
@@ -22,6 +30,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 public class CompareTest {
     
@@ -29,6 +38,9 @@ public class CompareTest {
     
     public static final String FOLDER_PATH;
     public static final String FOLDER_PATH_2;
+    public static final String FOLDER_PATH_3;
+    public static final String FOLDER_PATH_4;
+    public static final String XML_PATH_1;
     
     static {
         try {
@@ -38,11 +50,79 @@ public class CompareTest {
         }
         FOLDER_PATH = PROPERTIES.getProperty("FOLDER_PATH");
         FOLDER_PATH_2 = PROPERTIES.getProperty("FOLDER_PATH_2");
+        FOLDER_PATH_3 = PROPERTIES.getProperty("FOLDER_PATH_3");
+        FOLDER_PATH_4 = PROPERTIES.getProperty("FOLDER_PATH_4");
+        XML_PATH_1 = PROPERTIES.getProperty("XML_PATH_1");
     }
     
-    public static final void main(String[] args) {
+    public static final void main(String[] args) throws Exception {
         //putInSubFolders();
-        compareSubFolders();
+        //compareSubFolders();
+        //putInSubFolders2();
+        compareSubFolders2();
+    }
+    
+    public static final void compareSubFolders2() throws Exception {
+        final File folder = new File(FOLDER_PATH_3);
+        final File folder_2 = new File(FOLDER_PATH_4);
+        final SAXBuilder saxBuilder = new SAXBuilder();
+        final File xmlFile = new File(XML_PATH_1);
+        Files.write(xmlFile.toPath(), ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + "<root>\n" + "</root>").getBytes());
+        final Document document = saxBuilder.build(xmlFile);
+        final Element rootElement = document.getRootElement();
+        System.out.println(rootElement);
+        listFolder(folder, rootElement);
+        unlistFolder(folder_2, rootElement, (f_) -> new File(folder.getAbsolutePath() + File.separator + (f_.getAbsolutePath().substring(folder_2.getAbsolutePath().length() + File.separator.length()))));
+        final XMLOutputter xmlOutputter = new XMLOutputter();
+        xmlOutputter.setFormat(Format.getPrettyFormat());
+        xmlOutputter.output(document, new FileOutputStream(xmlFile));
+    }
+    
+    public static final void listFolder(File folder, Element parentElement) {
+        for (File f : folder.listFiles()) {
+            if (f.isFile()) {
+                final Element element = new Element("file");
+                element.setAttribute("name", f.getName());
+                parentElement.addContent(element);
+            } else if (f.isDirectory()) {
+                final Element element = new Element("directory");
+                element.setAttribute("name", f.getName());
+                parentElement.addContent(element);
+                listFolder(f, element);
+            }
+        }
+    }
+    
+    public static final void unlistFolder(File folder, Element parentElement, Function<File, File> toOtherFolder) {
+        for (File f : folder.listFiles()) {
+            if (f.isFile()) {
+                final Element element = parentElement.getChildren("file").stream().filter((child) -> child.getAttributeValue("name").equals(f.getName())).findFirst().orElse(null);
+                if (element != null) {
+                    try {
+                        final File f_ = toOtherFolder.apply(f);
+                        if (f_.length() != f.length()) {
+                            element.setAttribute("extra", "not same size");
+                            continue;
+                        }
+                        if (LongHashFunction.xx().hashBytes(Files.readAllBytes(f_.toPath())) != LongHashFunction.xx().hashBytes(Files.readAllBytes(f.toPath()))) {
+                            element.setAttribute("extra", "not same data");
+                            continue;
+                        }
+                        parentElement.removeContent(element);
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            } else if (f.isDirectory()) {
+                final Element element = parentElement.getChildren("directory").stream().filter((child) -> child.getAttributeValue("name").equals(f.getName())).findFirst().orElse(null);
+                if (element != null) {
+                    unlistFolder(f, element, toOtherFolder);
+                }
+                if (element.getChildren().isEmpty()) {
+                    parentElement.removeContent(element);
+                }
+            }
+        }
     }
     
     public static final void compareSubFolders() {
@@ -97,6 +177,27 @@ public class CompareTest {
         for (Map.Entry<File, Map<String, Object>> map : maps.values()) {
             compareSubFolder(map.getKey(), null, map.getValue());
         }
+    }
+    
+    public static final void putInSubFolders2() {
+        final File folder = new File(FOLDER_PATH_3);
+        Arrays.asList(folder.listFiles()).parallelStream().forEach((file) -> {
+            final char[] n = file.getName().toCharArray();
+            final Character c_1 = n[0];
+            final Character c_2 = n[1];
+            final Character c_3 = n[2];
+            final File folder_1 = new File(folder.getAbsolutePath() + File.separator + c_1);
+            final File folder_2 = new File(folder_1.getAbsolutePath() + File.separator + c_2);
+            final File folder_3 = new File(folder_2.getAbsolutePath() + File.separator + c_3);
+            folder_3.mkdirs();
+            final File file_new = new File(folder_3.getAbsolutePath() + File.separator + file.getName());
+            try {
+                Files.write(file_new.toPath(), Files.readAllBytes(file.toPath()));
+                file.delete();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        });
     }
     
     public static final void putInSubFolders() {
